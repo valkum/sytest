@@ -398,6 +398,21 @@ sub repeat_until_true(&)
    }  until => sub { $_[0]->get };
 }
 
+# wrapper around Future::with_cancel which works around a bug whereby the
+# returned future does not keep a reference to the old future, which means it
+# may get garbage-collected.
+# (Ref: https://rt.cpan.org/Ticket/Display.html?id=122920)
+#
+# (also sets the label as a potential debugging aid)
+sub without_cancel
+{
+   my ( $future ) = @_;
+   my $new = $future->without_cancel;
+   $new->{oldref} = $future;
+   $new->set_label( "without_cancel(" . ( $future->label // $future ) . ")" );
+   return $new;
+}
+
 my @log_if_fail_lines;
 my $test_start_time;
 
@@ -463,7 +478,7 @@ sub fixture
 
       sub { $f_start->done( @_ ) unless $f_start->is_ready },
 
-      Future->needs_all( @req_futures )
+      Future->needs_all( map { without_cancel($_) } @req_futures )
          ->then( $setup )
          ->set_label( $name ),
 
@@ -610,9 +625,9 @@ sub _run_test0
 
    my $success = eval {
       my @reqs;
-      my $f_setup = Future->needs_all( @$req_futures )
+      my $f_setup = Future->needs_all( map { without_cancel($_) } @$req_futures )
          ->on_done( sub { @reqs = @_ } )
-         ->on_fail( sub {
+         ->else( sub {
             my ( $reason ) = @_;
 
             # if any of the fixtures failed with a special 'SKIP' result, then skip
