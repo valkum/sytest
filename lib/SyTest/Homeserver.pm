@@ -84,7 +84,7 @@ The 'Service' parameter that the homeserver should send to the mock CAS server.
 
 =head2 app_service_config_files => ARRAY
 
-An array of paths to appservice YAML files to ve included in the homeserver's
+An array of paths to appservice YAML files to be included in the homeserver's
 configuration.
 
 =head1 SUBCLASS METHODS
@@ -280,7 +280,7 @@ sub _check_db_config
 
    my $db_type = $db_config{type};
    if( $db_type eq 'pg' ) {
-      foreach (qw( database host user password )) {
+      foreach (qw( database )) {
          if( !$db_config{args}->{$_} ) {
             die "Missing required database argument $_";
          }
@@ -339,6 +339,15 @@ sub _clear_db_pg
          my ( $tablename ) = @$row;
 
          $dbh->do( "DROP TABLE $tablename CASCADE" ) or
+            die $dbh->errstr;
+      }
+
+      foreach my $row ( @{ $dbh->selectall_arrayref(
+         "SELECT c.relname FROM pg_class c LEFT JOIN pg_namespace n ON n.oid = c.relnamespace WHERE relkind='S' AND n.nspname='public'"
+      ) } ) {
+         my ( $seqname ) = @$row;
+
+         $dbh->do( "DROP SEQUENCE $seqname" ) or
             die $dbh->errstr;
       }
    }

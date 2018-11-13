@@ -156,7 +156,8 @@ test "Guest user can set display names",
       )})->then( sub {
          my ( $body ) = @_;
 
-         defined $body->{displayname} and die "Didn't expect displayname";
+         # We used to assert here that the initial displayname was undefined, but as
+         # we let homeservers set sensible defaults these days, it's been relaxed.
 
          do_request_json_for( $guest_user,
             method  => "PUT",
@@ -200,7 +201,7 @@ test "Guest users are kicked from guest_access rooms on revocation of guest_acce
       ->then( sub {
          ( $room_id ) = @_;
 
-         matrix_change_room_powerlevels( $local_user, $room_id, sub {
+         matrix_change_room_power_levels( $local_user, $room_id, sub {
             my ( $levels ) = @_;
             $levels->{users}{ $remote_user->user_id } = 50;
          })->then( sub {

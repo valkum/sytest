@@ -1,4 +1,30 @@
 use Future::Utils qw( repeat );
+use Time::HiRes qw( time );
+
+# poll the status endpoint until it completes. Returns the final status.
+sub await_purge_complete {
+   my ( $admin_user, $purge_id ) = @_;
+
+   my $delay = 0.1;
+
+   return repeat( sub {
+      my ( $prev_trial ) = @_;
+
+      # delay if this isn't the first time around the loop
+      (
+         $prev_trial ? delay( $delay *= 1.5 ) : Future->done
+      )->then( sub {
+         do_request_json_for( $admin_user,
+            method  => "GET",
+            uri     => "/r0/admin/purge_history_status/$purge_id",
+         )
+      })->then( sub {
+         my ($body) = @_;
+         assert_json_keys( $body, "status" );
+         Future->done( $body->{status} );
+      })
+   }, while => sub { $_[0]->get eq 'active' });
+}
 
 test "/whois",
    requires => [ $main::API_CLIENTS[0] ],
@@ -77,6 +103,15 @@ test "/purge_history",
             content => {}
          )
       })->then( sub {
+         my ( $body ) = @_;
+
+         assert_json_keys( $body, "purge_id" );
+         my $purge_id = $body->{purge_id};
+         await_purge_complete( $admin, $purge_id );
+      })->then( sub {
+         my ( $purge_status ) = @_;
+         assert_eq( $purge_status, 'complete' );
+
          # Test that /sync with an existing token still works.
          matrix_sync_again( $user )
       })->then( sub {
@@ -106,6 +141,78 @@ test "/purge_history",
                or die "Expected state event of type $expected_type";
          }
 
+         Future->done( 1 );
+      })
+   };
+
+test "/purge_history by ts",
+   requires => [ local_admin_fixture(), local_user_and_room_fixtures() ],
+
+   do => sub {
+      my ( $admin, $user, $room_id ) = @_;
+
+      my ($last_event_id, $last_event_ts);
+
+      # we send 9 messages, get the current ts, and
+      # then send one more.
+      matrix_put_room_state( $user, $room_id,
+         type    => "m.room.name",
+         content => { name => "A room name" },
+      )->then( sub {
+         matrix_sync( $user )
+      })->then( sub {
+         repeat( sub {
+            my $msgnum = $_[0];
+
+            matrix_send_room_text_message( $user, $room_id,
+               body => "Message $msgnum",
+            )
+         }, foreach => [ 1 .. 9 ])
+      })->then( sub {
+         $last_event_ts = time();
+         delay(0.01);
+      })->then( sub {
+         matrix_send_room_text_message( $user, $room_id,
+            body => "Message 10",
+         );
+      })->then( sub {
+         ( $last_event_id ) = @_;
+         await_message_in_room( $user, $room_id, $last_event_id ),
+      })->then( sub {
+         do_request_json_for( $admin,
+            method  => "POST",
+            uri     => "/r0/admin/purge_history/$room_id",
+            content => {
+               purge_up_to_ts => int($last_event_ts * 1000),
+            },
+         )
+      })->then( sub {
+         my ( $body ) = @_;
+
+         assert_json_keys( $body, "purge_id" );
+         my $purge_id = $body->{purge_id};
+         await_purge_complete( $admin, $purge_id );
+      })->then( sub {
+         my ( $purge_status ) = @_;
+         assert_eq( $purge_status, 'complete' );
+
+         # Test that /sync with an existing token still works.
+         matrix_sync_again( $user )
+      })->then( sub {
+         # Test that an initial /sync has the correct data.
+         matrix_sync( $user )
+      })->then( sub {
+         my ( $body ) = @_;
+
+         assert_json_keys( $body->{rooms}{join}, $room_id );
+         my $room =  $body->{rooms}{join}{$room_id};
+
+         log_if_fail( "Room", $room->{timeline}{events} );
+
+         # The only message event should be the last one.
+         all {
+            $_->{type} ne "m.room.message" || $_->{event_id} eq $last_event_id
+         } @{ $room->{timeline}{events} } or die "Expected no message events";
          Future->done( 1 );
       })
    };
@@ -180,6 +287,15 @@ test "Can backfill purged history",
             content => {}
          )
       })->then( sub {
+         my ( $body ) = @_;
+
+         assert_json_keys( $body, "purge_id" );
+         my $purge_id = $body->{purge_id};
+         await_purge_complete( $admin, $purge_id );
+      })->then( sub {
+         my ( $purge_status ) = @_;
+         assert_eq( $purge_status, 'complete' );
+
          matrix_sync( $user )
       })->then( sub {
          my ( $body ) = @_;

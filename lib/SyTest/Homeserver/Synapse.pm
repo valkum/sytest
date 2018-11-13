@@ -70,6 +70,10 @@ sub _init
       user_dir_metrics => main::alloc_port( "user_dir[$idx].metrics" ),
       user_dir_manhole => main::alloc_port( "user_dir[$idx].manhole" ),
 
+      event_creator         => main::alloc_port( "event_creator[$idx]" ),
+      event_creator_metrics => main::alloc_port( "event_creator[$idx].metrics" ),
+      event_creator_manhole => main::alloc_port( "event_creator[$idx].manhole" ),
+
       haproxy => main::alloc_port( "haproxy[$idx]" ),
    };
 }
@@ -185,6 +189,7 @@ sub start
         notify_appservices    => ( not $self->{dendron} ),
         send_federation       => ( not $self->{dendron} ),
         update_user_directory => ( not $self->{dendron} ),
+        enable_media_repo     => ( not $self->{dendron} ),
 
         url_preview_enabled => "true",
         url_preview_ip_range_blacklist => [],
@@ -213,7 +218,7 @@ sub start
    {
       # create or truncate
       open my $tmph, ">", $log or die "Cannot open $log for writing - $!";
-      foreach my $suffix ( qw( appservice media_repository federation_reader synchrotron federation_sender client_reader user_dir ) ) {
+      foreach my $suffix ( qw( appservice media_repository federation_reader synchrotron federation_sender client_reader user_dir event_creator ) ) {
          open my $tmph, ">", "$log.$suffix" or die "Cannot open $log.$suffix for writing - $!";
       }
    }
@@ -255,6 +260,8 @@ sub start
 
    my $started_future = $loop->new_future;
 
+   $output->diag( "Starting server with command " . join( " ", @config_command ));
+
    $loop->run_child(
       setup => [ env => $env ],
 
@@ -264,8 +271,8 @@ sub start
          my ( $pid, $exitcode, $stdout, $stderr ) = @_;
 
          if( $exitcode != 0 ) {
-            print STDERR $stderr;
-            exit $exitcode;
+            $started_future->fail( "Server failed to start: exitcode " . ( $exitcode >> 8 ));
+            return
          }
 
          $output->diag( "Starting server for port $port" );
@@ -493,31 +500,6 @@ sub rotate_logfile
      otherwise => sub { die "Timed out waiting for synapse to recreate its log file" };
 }
 
-package SyTest::Homeserver::Synapse::Direct;
-use base qw( SyTest::Homeserver::Synapse );
-
-sub generate_listeners
-{
-   my $self = shift;
-
-   return
-      {
-         type => "http",
-         port => $self->{ports}{synapse},
-         bind_address => $self->{bind_host},
-         tls => 1,
-         resources => [{
-            names => [ "client", "federation", "replication", "metrics" ], compress => 0
-         }]
-      },
-      $self->SUPER::generate_listeners;
-}
-
-sub _start_await_port
-{
-   my $self = shift;
-   return $self->{ports}{synapse};
-}
 
 sub server_name
 {
@@ -547,6 +529,32 @@ sub unsecure_port
 {
    my $self = shift;
    return $self->{ports}{synapse_unsecure};
+}
+
+package SyTest::Homeserver::Synapse::Direct;
+use base qw( SyTest::Homeserver::Synapse );
+
+sub generate_listeners
+{
+   my $self = shift;
+
+   return
+      {
+         type => "http",
+         port => $self->{ports}{synapse},
+         bind_address => $self->{bind_host},
+         tls => 1,
+         resources => [{
+            names => [ "client", "federation", "replication", "metrics" ], compress => 0
+         }]
+      },
+      $self->SUPER::generate_listeners;
+}
+
+sub _start_await_port
+{
+   my $self = shift;
+   return $self->{ports}{synapse};
 }
 
 package SyTest::Homeserver::Synapse::ViaDendron;
@@ -829,6 +837,39 @@ sub wrap_synapse_command
          "--user-directory-url" => "http://$bind_host:$self->{ports}{user_dir}";
    }
 
+   {
+      my $event_creator_config_path = $self->write_yaml_file( "event_creator.yaml" => {
+         "worker_app"                   => "synapse.app.event_creator",
+         "worker_log_file"              => "$log.event_creator",
+         "worker_replication_host"      => "$bind_host",
+         "worker_replication_port"      => $self->{ports}{synapse_replication_tcp},
+         "worker_replication_http_port" => $self->{ports}{synapse_unsecure},
+         "worker_listeners"             => [
+            {
+               type      => "http",
+               resources => [{ names => ["client"] }],
+               port      => $self->{ports}{event_creator},
+               bind_address => $bind_host,
+            },
+            {
+               type => "manhole",
+               port => $self->{ports}{event_creator_manhole},
+               bind_address => $bind_host,
+            },
+            {
+               type      => "http",
+               resources => [{ names => ["metrics"] }],
+               port      => $self->{ports}{event_creator_metrics},
+               bind_address => $bind_host,
+            },
+         ],
+      } );
+
+      push @command,
+         "--event-creator-config" => $event_creator_config_path,
+         "--event-creator-url" => "http://$bind_host:$self->{ports}{event_creator}";
+   }
+
    return @command;
 }
 
@@ -965,6 +1006,9 @@ backend client_reader
 backend user_dir
     server user_dir ${bind_host}:$ports->{user_dir}
 
+backend event_creator
+    server event_creator ${bind_host}:$ports->{event_creator}
+
 EOCONFIG
 }
 
@@ -988,6 +1032,8 @@ sub generate_haproxy_map
 ^/_matrix/client/(api/v1|r0)/publicRooms$    client_reader
 
 ^/_matrix/client/(r0|unstable|v2_alpha)/user_directory/    user_dir
+
+^/_matrix/client/(api/v1|r0|unstable)/rooms/.*/send      event_creator
 EOCONFIG
 }
 

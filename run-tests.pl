@@ -44,13 +44,16 @@ use Module::Pluggable
    search_path => [ "SyTest::HomeserverFactory" ],
    require     => 1;
 
+
+binmode(STDOUT, ":utf8");
+
 our $WANT_TLS = 1;  # This is shared with the test scripts
 
 our $BIND_HOST = "localhost";
 
 # a unique ID for this test run. It is used in some tests to create user IDs
 # and the like.
-our $TEST_RUN_ID = strftime( '%Y%m%dT%H%M%S', gmtime() );
+our $TEST_RUN_ID = strftime( '%Y%m%d_%H%M%S', gmtime() );
 
 my %FIXED_BUGS;
 
@@ -448,26 +451,43 @@ sub fixture
    # actually invoke $setup
    @req_futures or push @req_futures, $f_start;
 
+   my $start = sub {
+      return if $f_start->is_ready;   # already started
+      $OUTPUT->diag( "Starting fixture $name" ) if ( $VERBOSE >= 2 );
+      $f_start->done( @_ );
+   };
+
    return Fixture(
       $name,
 
       \@requires,
 
-      sub { $f_start->done( @_ ) unless $f_start->is_ready },
+      $start,
 
       Future->needs_all( map { without_cancel($_) } @req_futures )
-         ->then( $setup )
-         ->set_label( $name ),
+         ->on_fail( sub {
+            my ( $reason ) = @_;
+
+            warn( "$name: input fixture failed with $reason" )
+               if ( $VERBOSE >= 3 );
+         })->then( $setup )
+         ->on_done( sub {
+            $OUTPUT->diag( "Fixture $name now ready" ) if ( $VERBOSE >= 2 );
+         })->set_label( $name ),
 
       $teardown ? sub {
          my ( $self ) = @_;
-         my $result_f = $self->result;
 
+         $OUTPUT->diag( "Tearing down fixture $name" ) if ( $VERBOSE >= 2 );
+
+         # replace the result with a failure so that the fixture will fail
+         # if reused.
+         my $result_f = $self->result;
          $self->result = Future->fail(
             "This Fixture has been torn down and cannot be used again"
          );
 
-         if( $result_f->is_ready ) {
+         if( $result_f->is_done ) {
             return $teardown->( $result_f->get );
          }
          else {
@@ -536,6 +556,8 @@ sub _run_test
 
    undef @log_if_fail_lines;
    $test_start_time = time();
+
+   $OUTPUT->diag( "Starting test ${ \$t->name }" ) if ( $VERBOSE >= 2 );
 
    local $MORE_STUBS = [];
 
@@ -606,6 +628,8 @@ sub _run_test0
          ->on_done( sub { @reqs = @_ } )
          ->else( sub {
             my ( $reason ) = @_;
+
+            warn( "Fixture failed with $reason" ) if ( $VERBOSE >= 2 );
 
             # if any of the fixtures failed with a special 'SKIP' result, then skip
             # the test rather than failing it.
@@ -750,11 +774,13 @@ TEST: {
 my $done_count = 0;
 my $failed_count = 0;
 my $expected_fail_count = 0;
+my $passed_count = 0;
 my $skipped_count = 0;
 
 $OUTPUT->status(
    tests   => scalar @TESTS,
    done    => $done_count,
+   passed  => $passed_count,
    failed  => $failed_count,
    skipped => $skipped_count,
 );
@@ -779,6 +805,10 @@ foreach my $test ( @TESTS ) {
 
    $done_count++;
 
+   if( $t->passed ) {
+      $passed_count++;
+   }
+
    if( $t->skipped ) {
       $skipped_count++;
    }
@@ -799,6 +829,7 @@ foreach my $test ( @TESTS ) {
    $OUTPUT->status(
       tests   => scalar @TESTS,
       done    => $done_count,
+      passed  => $passed_count,
       failed  => $failed_count,
       skipped => $skipped_count,
    );
@@ -845,7 +876,7 @@ if( $failed_count ) {
    exit 1;
 }
 else {
-   $OUTPUT->final_pass( $expected_fail_count, $skipped_count );
+   $OUTPUT->final_pass( $expected_fail_count, $passed_count, $skipped_count );
    exit 0;
 }
 
