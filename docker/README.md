@@ -35,6 +35,12 @@ docker run --rm -it -v /path/to/synapse\:/src:ro -v /path/to/where/you/want/logs
 docker run --rm -it -v /path/to/conduit\:/src:ro -v /path/to/where/you/want/logs\:/logs docker.pkg.github.com/valkum/sytest/sytest-conduit:latest
 ```
 
+### Conduit
+
+```
+docker run --rm -it -v /path/to/conduit\:/src:ro -v /path/to/where/you/want/logs\:/logs docker.pkg.github.com/valkum/sytest/sytest-conduit:latest
+```
+
 This will run on the same branch in SyTest as the checkout, if possible, but
 will fall back to using either Synapse or Dendrite's `develop` branch.
 
