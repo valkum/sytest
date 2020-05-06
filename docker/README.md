@@ -29,6 +29,29 @@ For example:
 docker run --rm -it -v /path/to/synapse\:/src:ro -v /path/to/where/you/want/logs\:/logs matrixdotorg/sytest-synapse:py37
 ```
 
+### Conduit
+
+```
+docker run --rm -it -v /path/to/conduit\:/src:ro -v /path/to/where/you/want/logs\:/logs docker.pkg.github.com/valkum/sytest/sytest-conduit:latest
+```
+
+This will run on the same branch in SyTest as the checkout, if possible, but
+will fall back to using either Synapse or Dendrite's `develop` branch.
+
+If you want to use an existing checkout of SyTest, mount it to `/sytest` inside
+the container by adding `-v /path/to/sytest\:/sytest:ro` to the docker command.
+
+You can pass arguments to sytest by adding them at the end of the docker
+command. For example, you can use
+
+```
+docker run --rm -it ... matrixdotorg/sytest-synapse:py35 tests/20profile-events.pl
+```
+
+to run only a single test.
+
+### Environment variables
+
 The following environment variables can be set with `-e` to control the test run:
 
  * `POSTGRES`: set non-empty to test against a PostgreSQL database instead of sqlite.

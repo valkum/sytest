@@ -56,3 +56,4 @@ requires 'Protocol::Matrix', '>= 0.02';
 requires 'Struct::Dumb', '>= 0.04';
 requires 'URI::Escape';
 requires 'YAML::XS';
+requires 'TOML::Tiny';
