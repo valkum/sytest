@@ -27,12 +27,16 @@ else
         # Dendrite uses master as its main branch. If the branch is master, we probably want sytest develop
         branch_name="develop"
     fi
+    if [ "$SYTEST_TARGET" == "conduit" ]; then
+        # Dendrite uses master as its main branch. If the branch is master, we probably want sytest develop
+        branch_name="develop"
+    fi
 
     # Try and fetch the branch
-    wget -q https://github.com/matrix-org/sytest/archive/$branch_name.tar.gz -O sytest.tar.gz || {
+    wget -q https://github.com/valkum/sytest/archive/$branch_name.tar.gz -O sytest.tar.gz || {
         # Probably a 404, fall back to develop
         echo "Using develop instead..."
-        wget -q https://github.com/matrix-org/sytest/archive/develop.tar.gz -O sytest.tar.gz
+        wget -q https://github.com/valkum/sytest/archive/develop.tar.gz -O sytest.tar.gz
     }
 
     mkdir -p /sytest
