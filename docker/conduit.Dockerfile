@@ -1,5 +1,5 @@
 ARG DEBIAN_VERSION=buster
-FROM vylkum/sytest:latest
+FROM valkum/sytest:latest
 
 RUN apt-get update && \
     apt-get install --no-install-recommends -y \
