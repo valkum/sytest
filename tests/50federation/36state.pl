@@ -364,8 +364,13 @@ test "Outbound federation requests missing prev_events and then asks for /state_
             ),
             await_sync_timeline_contains($creator, $room_id, check => sub {
                my ( $event ) = @_;
+               return unless $event->{type} eq "test_state";
+
                log_if_fail "Received event", $event;
-               return $event->{event_id} eq $sent_event_b->{event_id}
+
+               assert_eq( $event->{event_id}, $sent_event_b->{event_id}, "Got unexpected event");
+
+               return 1;
             }),
          );
       })->then( sub {
