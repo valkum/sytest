@@ -120,7 +120,6 @@ sub start
       setup => [
          env => {
             LOG_DIR => $self->{hs_dir},
-            LOG_DIR => $self->{hs_dir},
             RUST_LOG => "info",
             ROCKET_ENV => "staging",
             ROCKET_HOSTNAME => $self->http_api_host,
