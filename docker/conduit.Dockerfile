@@ -1,5 +1,5 @@
 ARG DEBIAN_VERSION=buster
-FROM docker.pkg.github.com/valkum/sytest/sytest:latest
+FROM vylkum/sytest:latest
 
 RUN apt-get update && \
     apt-get install --no-install-recommends -y \
