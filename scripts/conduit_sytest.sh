@@ -28,7 +28,7 @@ else
     # Build conduit
     echo >&2 "--- Building conduit from source"
     cd /src
-    cargo install --debug --path .
+    cargo install --debug --root /usr/local --path .
     cd -
 fi
 # Run the tests
