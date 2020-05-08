@@ -25,10 +25,10 @@ if [ -d "/app" ]; then
     echo >&2 "--- Installing binary from /app to /usr/local/bin"
     cp /app/conduit /usr/local/bin/conduit 
 else
-    # Build dendrite
+    # Build conduit
     echo >&2 "--- Building conduit from source"
     cd /src
-    cargo install --path .
+    cargo install --debug --path .
     cd -
 fi
 # Run the tests
