@@ -26,7 +26,7 @@ if [ -d "/app" ]; then
     cp /app/conduit /usr/local/bin/conduit 
 else
     # Build dendrite
-    echo >&2 "--- Building dendrite from source"
+    echo >&2 "--- Building conduit from source"
     cd /src
     cargo install --path .
     cd -
