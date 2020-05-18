@@ -15,10 +15,10 @@ mkdir -p /work
 ./install-deps.pl
 
 # Start the database
-su -c 'eatmydata /usr/lib/postgresql/*/bin/pg_ctl -w -D $PGDATA start' postgres
+# su -c 'eatmydata /usr/lib/postgresql/*/bin/pg_ctl -w -D $PGDATA start' postgres
 
 # Create required databases
-su -c 'for i in sytest_template; do psql -c "CREATE DATABASE $i;"; done' postgres
+# su -c 'for i in sytest_template; do psql -c "CREATE DATABASE $i;"; done' postgres
 
 
 if [ -d "/app" ]; then
