@@ -1115,12 +1115,11 @@ test "Inbound: send_join rejects invalid JSON for room version 6",
          ${event}{content}{bad_val} = 1.1;
 
          $datastore->sign_event( \%event );
-         my $event_id = SyTest::Federation::Protocol::id_for_event(\%event, '6');
 
          $outbound_client->do_request_json(
             method   => "PUT",
             hostname => $first_home_server,
-            uri      => "/v2/send_join/$room_id/$event_id",
+            uri      => "/v2/send_join/$room_id/xxx",
             content => \%event,
          )
       })->main::expect_m_bad_json;
