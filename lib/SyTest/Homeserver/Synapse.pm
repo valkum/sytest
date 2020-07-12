@@ -18,7 +18,7 @@ use File::Path qw( remove_tree );
 use List::Util qw( any );
 use POSIX qw( strftime WIFEXITED WEXITSTATUS );
 
-use YAML ();
+use JSON;
 
 use SyTest::SSL qw( ensure_ssl_key create_ssl_cert );
 
@@ -277,6 +277,17 @@ sub start
            },
         ) : (),
 
+        instance_map => {
+           "frontend_proxy1" => {
+              host => "$bind_host",
+              port => $self->{ports}{frontend_proxy},
+           },
+        },
+
+        stream_writers => {
+           events => $self->{redis_host} ne '' ? "frontend_proxy1" : "master",
+        },
+
         # We use a high limit so the limit is never reached, but enabling the
         # limit ensures that the code paths get hit. This helps testing the
         # feature with worker mode.
@@ -399,9 +410,8 @@ sub generate_listeners
          type         => "http",
          port         => $unsecure_port,
          bind_address => $bind_host,
-         tls          => 0,
          resources    => [{
-            names => [ "client", "federation", "replication", "metrics" ], compress => 0
+            names => [ "client", "federation", "replication", "metrics" ]
          }]
       }
    }
@@ -411,7 +421,6 @@ sub generate_listeners
          type         => "replication",
          port         => $replication_tcp_port,
          bind_address => $bind_host,
-         tls          => 0,
       }
    }
 
@@ -420,7 +429,6 @@ sub generate_listeners
          type         => "metrics",
          port         => $self->{ports}{synapse_metrics},
          bind_address => $bind_host,
-         tls          => 0,
       };
 }
 
@@ -632,9 +640,9 @@ sub generate_listeners
          type => "http",
          port => $self->{ports}{synapse},
          bind_address => $self->{bind_host},
-         tls => 1,
+         tls => JSON::true,
          resources => [{
-            names => [ "client", "federation", "replication", "metrics" ], compress => 0
+            names => [ "client", "federation", "replication", "metrics" ]
          }]
       },
       $self->SUPER::generate_listeners;
@@ -988,6 +996,7 @@ sub wrap_synapse_command
    {
       my $frontend_proxy_config_path = $self->write_yaml_file( "frontend_proxy.yaml" => {
          "worker_app"                   => "synapse.app.frontend_proxy",
+         "worker_name"                  => "frontend_proxy1",
          "worker_pid_file"              => "$hsdir/frontend_proxy.pid",
          "worker_log_config"            => $self->configure_logger("frontend_proxy"),
          "worker_replication_host"      => "$bind_host",
@@ -997,7 +1006,7 @@ sub wrap_synapse_command
          "worker_listeners"             => [
             {
                type      => "http",
-               resources => [{ names => ["client"] }],
+               resources => [{ names => ["client", "replication"] }],
                port      => $self->{ports}{frontend_proxy},
                bind_address => $bind_host,
             },
