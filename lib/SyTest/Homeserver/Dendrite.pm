@@ -130,8 +130,8 @@ sub _get_config
             output_room_event  => 'roomserverOutput',
             output_client_data => 'clientapiOutput',
             user_updates => 'userUpdates',
-            output_typing_event => 'typingServerOutput',
-            user_updates => 'userUpdates',
+            output_typing_event => 'eduServerTypingOutput',
+            output_send_to_device_event => 'eduServerSendToDeviceOutput',
          },
       },
 
@@ -141,7 +141,7 @@ sub _get_config
          ($_ => "file:$self->{hs_dir}/" . $_ . ".db") :
          ($_ => $db_uri) } qw(
             account device media_api sync_api room_server server_key
-            federation_sender public_rooms_api naffka appservice
+            federation_sender public_rooms_api naffka appservice current_state
          ),
       },
 
@@ -258,7 +258,7 @@ sub _get_config
    my $self = shift;
    my %config = $self->SUPER::_get_config();
 
-   $config{kafka}{use_naffka} = 'true';
+   $config{kafka}{use_naffka} = JSON::true;
 
    return %config;
 }
@@ -282,10 +282,16 @@ sub _start_monolith
       '--tls-key', $self->{paths}{tls_key},
    );
 
+   push(@command, '-api') if $ENV{'API'} == '1';
+   $output->diag( "Starting Dendrite with: @command" );
+
    return $self->_start_process_and_await_connectable(
       setup => [
          env => {
             LOG_DIR => $self->{hs_dir},
+            DENDRITE_TRACE_SQL => $ENV{'DENDRITE_TRACE_SQL'},
+            DENDRITE_TRACE_HTTP => $ENV{'DENDRITE_TRACE_HTTP'},
+            DENDRITE_TRACE_INTERNAL => $ENV{'DENDRITE_TRACE_INTERNAL'},
          },
       ],
       command => [ @command ],

@@ -51,5 +51,6 @@ requires 'Net::SSLeay', '>= 1.59';
 requires 'Protocol::Matrix', '>= 0.02';
 requires 'Struct::Dumb', '>= 0.04';
 requires 'URI::Escape';
-requires 'YAML';
+requires 'YAML::XS';
 requires 'TOML::Tiny';
+

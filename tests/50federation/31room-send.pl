@@ -81,10 +81,9 @@ test "Inbound federation can receive events",
             destination => $first_home_server,
          );
       })->then( sub {
-         await_event_for( $creator, filter => sub {
+         await_sync_timeline_contains( $creator, $room_id, check => sub {
             my ( $event ) = @_;
             return unless $event->{type} eq "m.room.message";
-            return unless $event->{room_id} eq $room_id;
 
             assert_eq( $event->{sender}, $user_id,
                'event sender' );
@@ -132,10 +131,9 @@ test "Inbound federation can receive redacted events",
             destination => $first_home_server,
          );
       })->then( sub {
-         await_event_for( $creator, filter => sub {
+         await_sync_timeline_contains( $creator, $room_id, check => sub {
             my ( $event ) = @_;
             return unless $event->{type} eq "m.room.message";
-            return unless $event->{room_id} eq $room_id;
 
             assert_eq( $event->{sender}, $user_id,
                'event sender' );
@@ -156,8 +154,8 @@ test "Ephemeral messages received from servers are correctly expired",
 
       my $filter = '{"types":["m.room.message"]}';
 
-      matrix_invite_user_to_room( $local_user, $federated_user, $room_id )->then( sub {
-         matrix_join_room( $federated_user, $room_id )
+      matrix_invite_user_to_room_synced( $local_user, $federated_user, $room_id )->then( sub {
+         matrix_join_room_synced( $federated_user, $room_id )
       })->then( sub {
          my $now_ms = int( time() * 1000 );
 
