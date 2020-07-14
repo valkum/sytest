@@ -201,10 +201,11 @@ sub _get_dbconfig
 
    my ( %db_config );
    if( -f $db_config_abs_path ) {
-      %db_config = %{ YAML::LoadFile( $db_config_abs_path ) };
+      %db_config = %{ YAML::XS::LoadFile( $db_config_abs_path ) };
    }
    else {
-      YAML::DumpFile( $db_config_abs_path, \%defaults );
+      local $YAML::XS::Boolean = "JSON::PP";
+      YAML::XS::DumpFile( $db_config_abs_path, \%defaults );
       %db_config = %defaults;
    }
 
