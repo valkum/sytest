@@ -15,20 +15,20 @@ mkdir -p /work
 ./install-deps.pl
 
 # Start the database
-su -c 'eatmydata /usr/lib/postgresql/*/bin/pg_ctl -w -D $PGDATA start' postgres
+# su -c 'eatmydata /usr/lib/postgresql/*/bin/pg_ctl -w -D $PGDATA start' postgres
 
 # Create required databases
-su -c 'for i in sytest_template; do psql -c "CREATE DATABASE $i;"; done' postgres
+# su -c 'for i in sytest_template; do psql -c "CREATE DATABASE $i;"; done' postgres
 
 
 if [ -d "/app" ]; then
     echo >&2 "--- Installing binary from /app to /usr/local/bin"
     cp /app/conduit /usr/local/bin/conduit 
 else
-    # Build dendrite
-    echo >&2 "--- Building dendrite from source"
+    # Build conduit
+    echo >&2 "--- Building conduit from source"
     cd /src
-    cargo install --path .
+    cargo install --debug --root /usr/local --path .
     cd -
 fi
 # Run the tests
@@ -36,8 +36,8 @@ echo >&2 "+++ Running tests"
 
 TEST_STATUS=0
 mkdir -p /logs
-./run-tests.pl -I Conduit -d /usr/local/bin -W /src/sytest-whitelist -O tap --all \
-    --work-directory="/work" \
+./run-tests.pl -I Conduit -d /usr/local/bin -W /src/sytest/sytest-whitelist -O tap --all \
+    --work-directory="/work" --exclude-deprecated \
     "$@" > /logs/results.tap || TEST_STATUS=$?
 
 if [ $TEST_STATUS -ne 0 ]; then
@@ -47,8 +47,8 @@ else
 fi
 
 # Check for new tests to be added to the test whitelist
-/src/show-expected-fail-tests.sh /logs/results.tap /src/sytest-whitelist \
-    /src/sytest-blacklist > /work/show_expected_fail_tests_output.txt || TEST_STATUS=$?
+/src/sytest/show-expected-fail-tests.sh /logs/results.tap /src/sytest/sytest-whitelist \
+    /src/sytest/sytest-blacklist > /work/show_expected_fail_tests_output.txt || TEST_STATUS=$?
 
 echo >&2 "--- Copying assets"
 
@@ -57,11 +57,15 @@ rsync -r --ignore-missing-args --min-size=1B -av /work/server-0 /work/server-1 /
 
 if [ $TEST_STATUS -ne 0 ]; then
     # Build the annotation
-    perl /sytest/scripts/format_tap.pl /logs/results.tap "$CI_LABEL" >/logs/annotate.md
+    perl /sytest/scripts/format_tap.pl /logs/results.tap "$BUILDKITE_LABEL" >/logs/annotate.md
     # If show-expected-fail-tests logged something, put it into the annotation
     # Annotations from a failed build show at the top of buildkite, alerting
     # developers quickly as to what needs to change in the black/whitelist.
     cat /work/show_expected_fail_tests_output.txt >> /logs/annotate.md
 fi
+
+echo >&2 "--- Sytest compliance report"
+(cd /src/sytest && ./are-we-synapse-yet.py /logs/results.tap) || true
+
 
 exit $TEST_STATUS
