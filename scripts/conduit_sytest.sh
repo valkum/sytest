@@ -36,7 +36,7 @@ echo >&2 "+++ Running tests"
 
 TEST_STATUS=0
 mkdir -p /logs
-./run-tests.pl -I Conduit -d /usr/local/bin -W /src/sytest/sytest-whitelist -O tap --all \
+./run-tests.pl -I Conduit -d /usr/local/bin -W /src/tests/sytest/sytest-whitelist -O tap --all \
     --work-directory="/work" --exclude-deprecated \
     "$@" > /logs/results.tap || TEST_STATUS=$?
 
@@ -47,8 +47,8 @@ else
 fi
 
 # Check for new tests to be added to the test whitelist
-/src/sytest/show-expected-fail-tests.sh /logs/results.tap /src/sytest/sytest-whitelist \
-    /src/sytest/sytest-blacklist > /work/show_expected_fail_tests_output.txt || TEST_STATUS=$?
+/src/tests/sytest/show-expected-fail-tests.sh /logs/results.tap /src/tests/sytest/sytest-whitelist \
+    /src/tests/sytest/sytest-blacklist > /work/show_expected_fail_tests_output.txt || TEST_STATUS=$?
 
 echo >&2 "--- Copying assets"
 
@@ -65,7 +65,7 @@ if [ $TEST_STATUS -ne 0 ]; then
 fi
 
 echo >&2 "--- Sytest compliance report"
-(cd /src/sytest && ./are-we-synapse-yet.py /logs/results.tap) || true
+(cd /src/tests/sytest && ./are-we-synapse-yet.py /logs/results.tap) || true
 
 
 exit $TEST_STATUS
