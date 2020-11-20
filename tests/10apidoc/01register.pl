@@ -256,7 +256,7 @@ sub matrix_register_user
    });
 }
 
-shared_secret_tests( "/r0/admin/register", \&matrix_admin_register_user_via_secret);
+shared_secret_tests( "/_synapse/admin/v1/register", \&matrix_admin_register_user_via_secret);
 
 sub matrix_admin_register_user_via_secret
 {
@@ -269,8 +269,8 @@ sub matrix_admin_register_user_via_secret
       croak "Require UID for matrix_register_user_via_secret";
 
    $http->do_request_json(
-      method => "GET",
-      uri    => "/r0/admin/register",
+      method   => "GET",
+      full_uri => "/_synapse/admin/v1/register",
    )->then( sub{
       my ( $nonce ) = @_;
 
@@ -280,8 +280,8 @@ sub matrix_admin_register_user_via_secret
       );
 
       return $http->do_request_json(
-         method => "POST",
-         uri    => "/r0/admin/register",
+         method   => "POST",
+         full_uri => "/_synapse/admin/v1/register",
 
          content => {
            nonce    => $nonce->{nonce},
@@ -318,6 +318,7 @@ sub shared_secret_tests {
 
    test "POST $ep_name with shared secret",
       requires => [ $main::API_CLIENTS[0], localpart_fixture() ],
+      implementation_specific => "synapse",
 
       proves => [qw( can_register_with_secret )],
 
@@ -334,6 +335,7 @@ sub shared_secret_tests {
 
    test "POST $ep_name admin with shared secret",
       requires => [ $main::API_CLIENTS[0], localpart_fixture() ],
+      implementation_specific => "synapse",
 
       do => sub {
          my ( $http, $uid ) = @_;
@@ -349,6 +351,7 @@ sub shared_secret_tests {
 
    test "POST $ep_name with shared secret downcases capitals",
       requires => [ $main::API_CLIENTS[0], localpart_fixture() ],
+      implementation_specific => "synapse",
 
       proves => [qw( can_register_with_secret )],
 
@@ -365,6 +368,7 @@ sub shared_secret_tests {
 
    test "POST $ep_name with shared secret disallows symbols",
       requires => [ $main::API_CLIENTS[0] ],
+      implementation_specific => "synapse",
 
       proves => [qw( can_register_with_secret )],
 

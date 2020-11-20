@@ -105,11 +105,7 @@ GetOptions(
 
    'exclude-deprecated' => sub { $INCLUDE_DEPRECATED_ENDPOINTS = 0 },
 
-   # these two are superceded by -I, but kept for backwards compatibility
-   'dendron=s' => sub {
-      $SERVER_IMPL = 'Synapse::ViaDendron' unless $SERVER_IMPL;
-      push @ARGV, "--dendron-binary", $_[1];
-   },
+   # this is superceded by -I, but kept for backwards compatibility
    'haproxy'   => sub {
       $SERVER_IMPL = 'Synapse::ViaHaproxy' unless $SERVER_IMPL;
    },
@@ -423,20 +419,24 @@ sub delay
 }
 
 # Handy utility wrapper around Future::Utils::try_repeat_until_success which
-# includes a delay on retry
+# includes a delay on retry (and logs the reason for failure)
 sub retry_until_success(&)
 {
    my ( $code ) = @_;
 
    my $delay = 0.1;
+   my $iter = 0;
 
    try_repeat {
-      my $prev_f = shift;
-
-      ( $prev_f ?
+      ( $iter++ ?
             delay( $delay *= 1.5 ) :
             Future->done )
-         ->then( $code );
+         ->then( $code )
+         ->on_fail( sub {
+            my ( $exc ) = @_;
+            chomp $exc;
+            log_if_fail("Iteration $iter: not ready yet: $exc");
+         });
    }  until => sub { !$_[0]->failure };
 }
 
@@ -624,6 +624,12 @@ sub _push_test
 
    if( $params{deprecated_endpoints} ) {
        if ( !$INCLUDE_DEPRECATED_ENDPOINTS ) {
+           return;
+       }
+   }
+
+   if( exists $params{implementation_specific} ) {
+       if ( $HS_FACTORY->implementation_name() ne $params{implementation_specific} ) {
            return;
        }
    }
@@ -945,7 +951,12 @@ sub AT_END
    push @AT_END, @_;
 }
 
-$_->() for @AT_END;
+sub run_AT_END
+{
+   $_->() for @AT_END;
+}
+
+run_AT_END;
 
 if( $failed_count ) {
    $OUTPUT->final_fail( $failed_count );
