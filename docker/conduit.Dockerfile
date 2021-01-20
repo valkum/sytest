@@ -29,6 +29,8 @@ RUN rm cpanfile install-deps.pl
 # this is a dependency of the TAP-JUnit converter
 RUN cpan XML::Generator
 
+RUN cpan TOML::Tiny
+
 # /logs is where we should expect logs to end up
 RUN mkdir /logs
 
